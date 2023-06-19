@@ -1,4 +1,5 @@
 import os
+import re
 import modal
 import ast
 from utils import clean_dir
@@ -117,8 +118,8 @@ def main(prompt, directory=DEFAULT_DIR, model=DEFAULT_MODEL, file=None):
         
     When given their intent, create a complete, exhaustive list of filepaths that the user would write to make the program.
     
-    only list the filepaths you would write, and return them as a python list of strings. 
-    do not add any other explanation, only return a python list of strings.
+    only list the filepaths you would write, and return them as a python list of strings to be evaluated by the ast.literal_eval function.
+    This is important: do not add any other explanation or notes, only return a python list of strings.
     """,
         prompt,
     )
@@ -179,19 +180,29 @@ def write_file(filename, filecode, directory):
     # Output the filename in blue color
     print("\033[94m" + filename + "\033[0m")
     print(filecode)
-    
+
+    regex = r"```(.*?)```"
+    matches = re.finditer(regex, filecode, re.DOTALL)
+    code = filecode
+
+    if matches:
+        for match in matches:
+            # Get the code
+            code = match.group(1).split("\n")[1:]
+            code = "\n".join(code)
+            break
+
     file_path = os.path.join(directory, filename)
-    dir = os.path.dirname(file_path)
 
     # Check if the filename is actually a directory
     if os.path.isdir(file_path):
         print(f"Error: {filename} is a directory, not a file.")
         return
 
-    os.makedirs(dir, exist_ok=True)
-
     # Open the file in write mode
     with open(file_path, "w") as file:
         # Write content to the file
-        file.write(filecode)
+        file.write(code)
+
+    print("File written successfully.")
 

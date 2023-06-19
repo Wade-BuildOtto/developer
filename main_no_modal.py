@@ -1,6 +1,7 @@
 import sys
 import os
 import ast
+import re
 from time import sleep
 from utils import clean_dir
 from constants import DEFAULT_DIR, DEFAULT_MODEL, DEFAULT_MAX_TOKENS
@@ -123,8 +124,8 @@ def main(prompt, directory=DEFAULT_DIR, file=None):
 
     When given their intent, create a complete, exhaustive list of filepaths that the user would write to make the program.
 
-    only list the filepaths you would write, and return them as a python list of strings.
-    do not add any other explanation, only return a python list of strings.
+    only list the filepaths you would write, and return them as a python list of strings to be evaluated by the ast.literal_eval function.
+    This is important: do not add any other explanation or notes, only return a python list of strings.
     """,
         prompt,
     )
@@ -132,7 +133,9 @@ def main(prompt, directory=DEFAULT_DIR, file=None):
     # parse the result into a python list
     list_actual = []
     try:
-        list_actual = ast.literal_eval(filepaths_string)
+        # list_actual = ast.literal_eval(filepaths_string)
+        filepaths_string_fixed = re.sub(r'(?<=\n|^)- (.+?)(?=\n|$)', r'- "\1"', filepaths_string)
+        list_actual = ast.literal_eval(filepaths_string_fixed)
 
         # if shared_dependencies.md is there, read it in, else set it to None
         shared_dependencies = None
@@ -193,14 +196,30 @@ def write_file(filename, filecode, directory):
     print("\033[94m" + filename + "\033[0m")
     print(filecode)
 
-    file_path = directory + "/" + filename
-    dir = os.path.dirname(file_path)
-    os.makedirs(dir, exist_ok=True)
+    regex = r"```(.*?)```"
+    matches = re.finditer(regex, filecode, re.DOTALL)
+    code = filecode
+
+    if matches:
+        for match in matches:
+            # Get the code
+            code = match.group(1).split("\n")[1:]
+            code = "\n".join(code)
+            break
+
+    file_path = os.path.join(directory, filename)
+
+    # Check if the filename is actually a directory
+    if os.path.isdir(file_path):
+        print(f"Error: {filename} is a directory, not a file.")
+        return
 
     # Open the file in write mode
     with open(file_path, "w") as file:
         # Write content to the file
-        file.write(filecode)
+        file.write(code)
+
+    print("File written successfully.")
 
 
 if __name__ == "__main__":
@@ -227,4 +246,5 @@ if __name__ == "__main__":
     file = sys.argv[3] if len(sys.argv) > 3 else None
 
     # Run the main function
+    print("main: ", directory, file)
     main(prompt, directory, file)
